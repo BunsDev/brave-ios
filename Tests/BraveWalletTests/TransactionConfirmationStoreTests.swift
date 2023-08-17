@@ -15,13 +15,15 @@ import BraveCore
   private func setupStore(
     selectedNetworkForCoinType: [BraveWallet.CoinType: BraveWallet.NetworkInfo] = [
       .eth : BraveWallet.NetworkInfo.mockMainnet,
-      .sol : BraveWallet.NetworkInfo.mockSolana
+      .sol : BraveWallet.NetworkInfo.mockSolana,
+      .fil : BraveWallet.NetworkInfo.mockFilecoinMainnet
     ],
     allNetworksForCoinType: [BraveWallet.CoinType: [BraveWallet.NetworkInfo]] = [
       .eth: [.mockMainnet, .mockGoerli],
-      .sol: [.mockSolana, .mockSolanaTestnet]
+      .sol: [.mockSolana, .mockSolanaTestnet],
+      .fil: [.mockFilecoinMainnet, .mockFilecoinTestnet]
     ],
-    accountInfos: [BraveWallet.AccountInfo] = [.mockEthAccount, .mockSolAccount],
+    accountInfos: [BraveWallet.AccountInfo] = [.mockEthAccount, .mockSolAccount, .mockFilAccount],
     allTokens: [BraveWallet.BlockchainToken] = [],
     transactions: [BraveWallet.TransactionInfo] = [],
     gasEstimation: BraveWallet.GasEstimation1559 = .init(),
@@ -30,12 +32,14 @@ import BraveCore
   ) -> TransactionConfirmationStore {
     let mockEthAssetPrice: BraveWallet.AssetPrice = .init(fromAsset: "eth", toAsset: "usd", price: "3059.99", assetTimeframeChange: "-57.23")
     let mockSolAssetPrice: BraveWallet.AssetPrice = .init(fromAsset: "sol", toAsset: "usd", price: "39.57", assetTimeframeChange: "-57.23")
+    let mockFilAssetPrice: BraveWallet.AssetPrice = .init(fromAsset: "fil", toAsset: "usd", price: "4.0", assetTimeframeChange: "-57.23")
     let formatter = WeiFormatter(decimalFormatStyle: .decimals(precision: 18))
     let mockBalanceWei = formatter.weiString(from: 0.0896, radix: .hex, decimals: 18) ?? ""
+    let mockFILBalanceWei = formatter.weiString(from: 1, decimals: 18) ?? ""
     // setup test services
     let assetRatioService = BraveWallet.TestAssetRatioService()
     assetRatioService._price = { _, _, _, completion in
-      completion(true, [mockEthAssetPrice, mockSolAssetPrice])
+      completion(true, [mockEthAssetPrice, mockSolAssetPrice, mockFilAssetPrice])
     }
     let rpcService = BraveWallet.TestJsonRpcService()
     rpcService._chainIdForOrigin = { coin, origin, completion in
@@ -47,8 +51,12 @@ import BraveCore
     rpcService._allNetworks = { coin, completion in
       completion(allNetworksForCoinType[coin] ?? [])
     }
-    rpcService._balance = { _, _, _, completion in
-      completion(mockBalanceWei, .success, "")
+    rpcService._balance = { _, coin, _, completion in
+      if coin == .eth {
+        completion(mockBalanceWei, .success, "")
+      } else { // .fil
+        completion(mockFILBalanceWei, .success, "")
+      }
     }
     rpcService._erc20TokenAllowance = { _, _, _, _, completion in
       completion("16345785d8a0000", .success, "") // 0.1000
@@ -102,8 +110,10 @@ import BraveCore
         accountInfos: [])
       if id == BraveWallet.KeyringId.default {
         keyring.accountInfos = accountInfos.filter { $0.coin == .eth }
-      } else {
+      } else if id == .solana {
         keyring.accountInfos = accountInfos.filter { $0.coin == .sol }
+      } else {
+        keyring.accountInfos = accountInfos.filter { $0.coin == .fil }
       }
       completion(keyring)
     }
@@ -316,8 +326,10 @@ import BraveCore
     solanaSendCopy.chainId = BraveWallet.SolanaMainnet
     let solanaSPLSendCopy = BraveWallet.TransactionInfo.previewConfirmedSolTokenTransfer.copy() as! BraveWallet.TransactionInfo
     solanaSPLSendCopy.chainId = BraveWallet.SolanaTestnet
+    let filecoinSendCopy = BraveWallet.TransactionInfo.mockFilUnapprovedSend.copy() as! BraveWallet.TransactionInfo
+    filecoinSendCopy.chainId = BraveWallet.FilecoinMainnet
     let pendingTransactions: [BraveWallet.TransactionInfo] = [
-      sendCopy, swapCopy, solanaSendCopy, solanaSPLSendCopy
+      sendCopy, swapCopy, solanaSendCopy, solanaSPLSendCopy, filecoinSendCopy
     ].enumerated().map { (index, tx) in
       tx.txStatus = .unapproved
       // transactions sorted by created time, make sure they are in-order
@@ -331,28 +343,30 @@ import BraveCore
     )
     let networkExpectation = expectation(description: "network-expectation")
     store.$network
-      .dropFirst(6) // `network` is assigned multiple times during setup
-      .collect(4) // collect all transactions
+      .dropFirst(7) // `network` is assigned multiple times during setup
+      .collect(5) // collect all transactions
       .sink { networks in
         defer { networkExpectation.fulfill() }
-        XCTAssertEqual(networks.count, 4)
-        XCTAssertEqual(networks[safe: 0], BraveWallet.NetworkInfo.mockSolanaTestnet)
-        XCTAssertEqual(networks[safe: 1], BraveWallet.NetworkInfo.mockSolana)
-        XCTAssertEqual(networks[safe: 2], BraveWallet.NetworkInfo.mockMainnet)
-        XCTAssertEqual(networks[safe: 3], BraveWallet.NetworkInfo.mockGoerli)
+        XCTAssertEqual(networks.count, 5)
+        XCTAssertEqual(networks[safe: 0], BraveWallet.NetworkInfo.mockFilecoinMainnet)
+        XCTAssertEqual(networks[safe: 1], BraveWallet.NetworkInfo.mockSolanaTestnet)
+        XCTAssertEqual(networks[safe: 2], BraveWallet.NetworkInfo.mockSolana)
+        XCTAssertEqual(networks[safe: 3], BraveWallet.NetworkInfo.mockMainnet)
+        XCTAssertEqual(networks[safe: 4], BraveWallet.NetworkInfo.mockGoerli)
       }
       .store(in: &cancellables)
     let activeTransactionIdExpectation = expectation(description: "activeTransactionId-expectation")
     store.$activeTransactionId
       .dropFirst()
-      .collect(4) // collect all transactions
+      .collect(5) // collect all transactions
       .sink { activeTransactionIds in
         defer { activeTransactionIdExpectation.fulfill() }
-        XCTAssertEqual(activeTransactionIds.count, 4)
-        XCTAssertEqual(activeTransactionIds[safe: 0], pendingTransactions[safe: 3]?.id)
-        XCTAssertEqual(activeTransactionIds[safe: 1], pendingTransactions[safe: 2]?.id)
-        XCTAssertEqual(activeTransactionIds[safe: 2], pendingTransactions[safe: 1]?.id)
-        XCTAssertEqual(activeTransactionIds[safe: 3], pendingTransactions[safe: 0]?.id)
+        XCTAssertEqual(activeTransactionIds.count, 5)
+        XCTAssertEqual(activeTransactionIds[safe: 0], pendingTransactions[safe: 4]?.id)
+        XCTAssertEqual(activeTransactionIds[safe: 1], pendingTransactions[safe: 3]?.id)
+        XCTAssertEqual(activeTransactionIds[safe: 2], pendingTransactions[safe: 2]?.id)
+        XCTAssertEqual(activeTransactionIds[safe: 3], pendingTransactions[safe: 1]?.id)
+        XCTAssertEqual(activeTransactionIds[safe: 4], pendingTransactions[safe: 0]?.id)
       }
       .store(in: &cancellables)
     
@@ -360,6 +374,7 @@ import BraveCore
     store.nextTransaction() // `swapCopy` on Ethereum Mainnet
     store.nextTransaction() // `solanaSendCopy` on Solana Mainnet
     store.nextTransaction() // `solanaSPLSendCopy` on Solana Testnet
+    store.nextTransaction() // `filecoinSendCopy` on filecoin mainnet
     await fulfillment(of: [networkExpectation, activeTransactionIdExpectation], timeout: 1)
   }
   
@@ -486,6 +501,55 @@ import BraveCore
       }
     )
     await fulfillment(of: [editExpectation], timeout: 1)
+  }
+  
+  func testPrepareFilSend() async {
+    let mockAllTokens: [BraveWallet.BlockchainToken] = [.mockFilToken]
+    let mockTransaction: BraveWallet.TransactionInfo = .mockFilUnapprovedSend
+    let mockTransactions: [BraveWallet.TransactionInfo] = [mockTransaction].map { tx in
+      tx.txStatus = .unapproved
+      return tx
+    }
+    let store = setupStore(
+      accountInfos: [.mockFilAccount],
+      allTokens: mockAllTokens,
+      transactions: mockTransactions
+    )
+    let prepareExpectation = expectation(description: "prepare")
+    await store.prepare()
+    store.$activeTransactionId
+      .sink { id in
+        defer { prepareExpectation.fulfill() }
+        XCTAssertEqual(id, mockTransaction.id)
+      }
+      .store(in: &cancellables)
+    store.$gasValue
+      .dropFirst()
+      .sink { value in
+        XCTAssertEqual(value, "0.000000155797727645")
+      }
+      .store(in: &cancellables)
+    store.$gasSymbol
+      .dropFirst()
+      .sink { value in
+        XCTAssertEqual(value, BraveWallet.BlockchainToken.mockFilToken.symbol)
+      }
+      .store(in: &cancellables)
+    store.$symbol
+      .dropFirst()
+      .sink { value in
+        XCTAssertEqual(value, BraveWallet.BlockchainToken.mockFilToken.symbol)
+      }
+      .store(in: &cancellables)
+    store.$value
+      .dropFirst()
+      .sink { value in
+        XCTAssertEqual(value, "1")
+      }
+      .store(in: &cancellables)
+    
+    await fulfillment(of: [prepareExpectation], timeout: 1)
+    
   }
 }
 
