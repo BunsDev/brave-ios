@@ -13,6 +13,7 @@ import Data
 import os.log
 import BraveWallet
 import Favicon
+import ScreenTime
 
 protocol TabContentScriptLoader {
   static func loadUserScript(named: String) -> String?
@@ -65,6 +66,7 @@ enum TabSecureContentState {
 class Tab: NSObject {
   let id: UUID
   let rewardsId: UInt32
+  let screenTimeViewController = STWebpageController()
 
   var onScreenshotUpdated: (() -> Void)?
   var rewardsEnabledCallback: ((Bool) -> Void)?
@@ -175,6 +177,7 @@ class Tab: NSObject {
     willSet {
       url = newValue
       previousComittedURL = committedURL
+      screenTimeViewController.url = url
     }
   }
   
@@ -306,6 +309,7 @@ class Tab: NSObject {
 
     super.init()
     self.type = type
+    self.screenTimeViewController.suppressUsageRecording = type.isPrivate
   }
 
   weak var navigationDelegate: WKNavigationDelegate? {
@@ -341,6 +345,11 @@ class Tab: NSObject {
       }
       let webView = TabWebView(frame: .zero, tab: self, configuration: configuration!, isPrivate: isPrivate)
       webView.delegate = self
+      
+      webView.addSubview(screenTimeViewController.view)
+      screenTimeViewController.view.snp.makeConstraints {
+        $0.edges.equalToSuperview()
+      }
 
       webView.accessibilityLabel = Strings.webContentAccessibilityLabel
       webView.allowsBackForwardNavigationGestures = true
