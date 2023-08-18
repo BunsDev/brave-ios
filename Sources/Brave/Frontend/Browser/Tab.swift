@@ -177,6 +177,14 @@ class Tab: NSObject {
     willSet {
       url = newValue
       previousComittedURL = committedURL
+      
+      // Hack: STWebpageController breaks if you pass scheme other than http or https.
+      // Otherwise it breaks for our internal URLs like the new tab page.
+      guard let url = url, (url.scheme == "http" || url.scheme == "https") else {
+        screenTimeViewController.url = URL(string: "https://about:blank")
+        return
+      }
+      
       screenTimeViewController.url = url
     }
   }
