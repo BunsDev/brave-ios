@@ -25,7 +25,7 @@ class EthereumProviderScriptHandler: TabContentScript {
     self.tab = tab
   }
   
-  static let scriptName = "WalletEthereumProviderScript"
+  static let scriptName = "WalletEthereumScript"
   static let scriptId = UUID().uuidString
   static let messageHandlerName = "\(scriptName)_\(messageUUID)"
   static let scriptSandbox: WKContentWorld = .page
