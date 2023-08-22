@@ -295,6 +295,8 @@ extension BraveWallet.OnRampProvider {
     case .stripe:
       // Product names not localized
       return String.localizedStringWithFormat(Strings.Wallet.stripeNetworkProviderName, "Link", "Stripe")
+    case .coinbase:
+      return "Coinbase Pay"
     default:
       return ""
     }
@@ -311,6 +313,8 @@ extension BraveWallet.OnRampProvider {
     case .stripe:
       // Product name is not localized
       return "Link"
+    case .coinbase:
+      return "Coinbase Pay"
     default:
       return ""
     }
@@ -326,6 +330,8 @@ extension BraveWallet.OnRampProvider {
       return Strings.Wallet.transakProviderDescription
     case .stripe:
       return Strings.Wallet.stripeNetworkProviderDescription
+    case .coinbase:
+      return Strings.Wallet.coinbaseNetworkProviderDescription
     default:
       return ""
     }
@@ -341,6 +347,8 @@ extension BraveWallet.OnRampProvider {
       return "transak-icon"
     case .stripe:
       return "link-by-stripe-icon"
+    case .coinbase:
+      return "coinbase-icon"
     default:
       return ""
     }
