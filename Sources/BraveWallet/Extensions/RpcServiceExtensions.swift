@@ -293,9 +293,14 @@ extension BraveWalletJsonRpcService {
   
   /// Returns an array of all networks for the supported coin types.
   @MainActor func allNetworksForSupportedCoins() async -> [BraveWallet.NetworkInfo] {
+    await allNetworks(for: WalletConstants.supportedCoinTypes.elements)
+  }
+  
+  /// Returns an array of all networks for givin coins
+  @MainActor func allNetworks(for coins: [BraveWallet.CoinType]) async -> [BraveWallet.NetworkInfo] {
     await withTaskGroup(of: [BraveWallet.NetworkInfo].self) { @MainActor [weak self] group -> [BraveWallet.NetworkInfo] in
       guard let self = self else { return [] }
-      for coinType in WalletConstants.supportedCoinTypes {
+      for coinType in coins {
         group.addTask { @MainActor in
           let chains = await self.allNetworks(coinType)
           return chains.filter { // localhost not supported
