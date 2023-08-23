@@ -293,7 +293,7 @@ extension BraveWalletJsonRpcService {
   
   /// Returns an array of all networks for the supported coin types.
   @MainActor func allNetworksForSupportedCoins() async -> [BraveWallet.NetworkInfo] {
-    await allNetworks(for: WalletConstants.supportedCoinTypes.elements)
+    await allNetworks(for: WalletConstants.supportedCoinTypes.coins().elements)
   }
   
   /// Returns an array of all networks for givin coins
